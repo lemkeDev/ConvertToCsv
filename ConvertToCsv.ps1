@@ -10,9 +10,6 @@ if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
 }
 
 $files = $dialog.FileNames
-
-# Maximum number of Excel instances to run simultaneously.
-# Increase if your PC has plenty of RAM/CPU.
 $maxConcurrentJobs = 4
 
 $scriptBlock = {
@@ -24,35 +21,27 @@ $scriptBlock = {
     try {
         $folder = Split-Path $file
 
-        # Create Uploads folder if needed
         $uploadFolder = Join-Path $folder "Uploads"
         if (-not (Test-Path $uploadFolder)) {
-            New-Item -ItemType Directory -Path $uploadFolder -ItemType Directory -Force | Out-Null
+            New-Item -Path $uploadFolder -ItemType Directory -Force | Out-Null
         }
 
-        # Clean the output filename
         $name = [System.IO.Path]::GetFileNameWithoutExtension($file)
-
-        # Remove spaces, hyphens, and parentheses
         $cleanName = $name -replace '[ ()-]', ''
-
         $csvPath = Join-Path $uploadFolder "$cleanName.csv"
 
-        # Start Excel
         $excel = New-Object -ComObject Excel.Application
         $excel.Visible = $false
         $excel.DisplayAlerts = $false
 
-        # Open workbook
         $workbook = $excel.Workbooks.Open($file)
-
-        # Save first worksheet as CSV (6 = xlCSV)
         $workbook.Worksheets.Item(1).SaveAs($csvPath, 6)
 
         $workbook.Close($false)
         $workbook = $null
 
         $excel.Quit()
+        $excel = $null
 
         Write-Output "SUCCESS: $cleanName.csv"
     }
@@ -78,7 +67,6 @@ $scriptBlock = {
 $jobs = @()
 
 foreach ($file in $files) {
-
     while (($jobs | Where-Object State -eq Running).Count -ge $maxConcurrentJobs) {
         Start-Sleep -Milliseconds 500
 
@@ -93,7 +81,6 @@ foreach ($file in $files) {
     $jobs += Start-Job -ScriptBlock $scriptBlock -ArgumentList $file
 }
 
-# Wait for remaining jobs
 while ($jobs.Count -gt 0) {
     Start-Sleep -Milliseconds 500
 
